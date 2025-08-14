@@ -1,7 +1,9 @@
 #include <Arduino.h>
 
-#include "Adafruit_SSD1306.h"
-#include "SevSegShift.h"
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <SevSegShift.h>
 
 // ---- SETUP -----
 // --- General ---
@@ -32,6 +34,7 @@ enum Screens {
     DEFAULT_SCREEN,
     PROGRAM_SCREEN,
     TAP_TEMPO,
+    SETTINGS,
     INIT
 };
 
@@ -49,8 +52,10 @@ struct ButtonData {
     bool lastStableState = false;
     bool lastStableReading = false;
     bool longPressReported = false;
+    bool isLongPressing = false;
     unsigned long lastDebounceTime = 0;
     unsigned long pressStartTime = 0;
+    unsigned long lastRepeatTime = 0;
 };
 
 const unsigned long LONG_PRESS_TIME = 500;
@@ -77,6 +82,11 @@ const int SHIFT_SHCP = 6;
 
 SevSegShift sevseg(SHIFT_DS, SHIFT_SHCP, SHIFT_STCP, 1, true);
 
+unsigned long lastInteractionTime = 0;
+const unsigned long SCREEN_DIM_TIMEOUT = 5000;
+const int BRIGHTNESS_NORMAL = 100;
+const int BRIGHTNESS_DIM = 10;
+
 // --- Feedback ---
 // Todo: DAC
 const int BEAT_INIDICATOR_PIN = 2;
@@ -91,8 +101,10 @@ bool sevenSegInit = false;
 bool buttonsInit = false;
 bool feedbackInit = false;
 
+// --- OLED SCREENS ---
 
-// ----- SETUP FUNCTION -----
+
+// ----- SETUP FUNCTIONS -----
 bool SetupSevenSegDisplay(char* initStr = "") {
     byte num_digits = 4;
     byte digit_pins[] = {12, 11, 10, 9};
@@ -112,6 +124,8 @@ bool SetupSevenSegDisplay(char* initStr = "") {
 
     sevseg.setChars(initStr);
 
+    Serial.println("7Seg: Done!");
+
     return true;
 }
 
@@ -124,6 +138,8 @@ bool SetupButtons() {
     pinMode(BTN_DOWN_PIN, INPUT_PULLUP);
     pinMode(BTN_TAP_PIN, INPUT_PULLUP);
 
+    Serial.println("Buttons: Done!");
+
     return true;
 }
 
@@ -133,7 +149,7 @@ bool SetupOLED() {
         return false;
     }
 
-    //StartupDisplay();
+    //OLEDStartupDisplay(display);
     delay(2000);
     display.clearDisplay();
     display.setTextColor(SSD1306_WHITE);
@@ -141,6 +157,7 @@ bool SetupOLED() {
     display.setCursor(0, 0);
 
     current_screen = INIT;
+    Serial.println("OLED Initialized");
     return true;
 }
 
@@ -150,8 +167,10 @@ bool SetupFeedback() {
     return true;
 }
 
-
 void setup() {
+
+    Serial.begin(9600);
+
     oledInit = SetupOLED();
     sevenSegInit = SetupSevenSegDisplay();
     buttonsInit = SetupButtons();
@@ -164,7 +183,7 @@ void setup() {
 
     }
     else {
-        for (;;);
+        sevseg.setChars("Err!");
     }
 }
 
@@ -187,8 +206,11 @@ PressType CheckButtonPress(ButtonData &btn) {
                 // Button pressed
                 btn.pressStartTime = millis();
                 btn.longPressReported = false;
+                btn.isLongPressing = false;
+                btn.lastRepeatTime = millis();
             } else {
                 // Button released
+                btn.isLongPressing = false;
                 if (!btn.longPressReported && (millis() - btn.pressStartTime) < LONG_PRESS_TIME) {
                     return SHORT_PRESS;
                 }
@@ -199,6 +221,7 @@ PressType CheckButtonPress(ButtonData &btn) {
         if (btn.lastStableState && !btn.longPressReported) {
             if (millis() - btn.pressStartTime >= LONG_PRESS_TIME) {
                 btn.longPressReported = true;
+                btn.isLongPressing = true;
                 return LONG_PRESS;
             }
         }
@@ -207,22 +230,107 @@ PressType CheckButtonPress(ButtonData &btn) {
     return NONE;
 }
 
+void HandleInteraction() {
+    lastInteractionTime = millis();
+    sevseg.setBrightness(BRIGHTNESS_NORMAL);
+}
+
+// Enum Cycling Helper
+void cycleModeUp() {
+    metronomeMode = static_cast<MetronomeMode>((metronomeMode + 1) % 3);
+}
+
+void cycleModeDown() {
+    metronomeMode = static_cast<MetronomeMode>((metronomeMode + 2) % 3);
+}
 
 void loop() {
 
-
+    // --- Handle Button Presses ---
     PressType tapPress = CheckButtonPress(tapBtn);
     PressType btnUpPress = CheckButtonPress(upBtn);
     PressType btnDownPress = CheckButtonPress(downBtn);
 
-    if (tapPress == LONG_PRESS) {
+    if (tapPress != NONE || btnUpPress != NONE || btnDownPress != NONE) {
+        HandleInteraction();
+    }
+
+    // Screen Logic
+    if (tapPress == LONG_PRESS && current_screen != MODE_SELECT) {
         sevseg.setChars("MODE");
+        current_screen = MODE_SELECT;
         // Change to the Mode Select
     }
 
-    if (btnUpPress == LONG_PRESS && btnDownPress == LONG_PRESS) {
+    if (upBtn.isLongPressing && downBtn.isLongPressing) {
         sevseg.setChars("Sett");
+        current_screen = SETTINGS;
+        // Change to the settings page
+    }
+
+    // Handle Mode Select
+    if (current_screen == MODE_SELECT) {
+        sevseg.setChars("----");
+        static bool firstEntry = true;
+        if (firstEntry) {
+            //OLEDModeSelect(display);
+            firstEntry = false;
+        }
+
+        if (btnUpPress == SHORT_PRESS) {
+            cycleModeUp();
+        }
+        if (btnDownPress == SHORT_PRESS) {
+            cycleModeDown();
+        }
+
+        if (tapPress == SHORT_PRESS) {
+            switch (metronomeMode) {
+                case NORMAL:
+                    current_screen = DEFAULT_SCREEN;
+                    break;
+                case PROGRAM:
+                    current_screen = PROGRAM_SCREEN;
+                    break;
+                case TAP:
+                    current_screen = TAP_TEMPO;
+                    break;
+            }
+            firstEntry = true;
+        }
+
+        sevseg.setChars(GetCurrentModeText());
+    }
+
+    // Handle Normal Mode (DEFAULT_SCREEN)
+    else if (current_screen == DEFAULT_SCREEN) {
+        // Short Press Actions
+        if (btnUpPress == SHORT_PRESS) {
+            if (currentTempo < MAX_TEMPO) currentTempo++;
+        }
+        if (btnDownPress == SHORT_PRESS) {
+            if (currentTempo > MIN_TEMPO) currentTempo--;
+        }
+
+        // Long Press Actions
+        unsigned long currentTime = millis();
+        if (upBtn.isLongPressing && currentTime - upBtn.lastRepeatTime >= 100) { // Every 100ms
+            if (currentTempo < MAX_TEMPO) currentTempo++;
+            upBtn.lastRepeatTime = currentTime;
+        }
+        if (downBtn.isLongPressing && currentTime - downBtn.lastRepeatTime >= 100) { // Every 100ms
+            if (currentTempo > MIN_TEMPO) currentTempo--;
+            downBtn.lastRepeatTime = currentTime;
+        }
+
+        sevseg.setNumber(currentTempo);
     }
 
     sevseg.refreshDisplay();
+
+    // Screen Dim
+    if (millis() - lastInteractionTime >= SCREEN_DIM_TIMEOUT) {
+        sevseg.setBrightness(BRIGHTNESS_DIM);
+    }
+
 }
