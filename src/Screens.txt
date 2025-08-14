@@ -1,0 +1,132 @@
+class Program {
+    display.clearDisplay();
+
+    display.setTextColor(1);
+    display.setTextSize(2);
+    display.setTextWrap(false);
+    display.setCursor(2, 2);
+    display.print("Song:");
+
+    display.setCursor(68, 2);
+    display.print(currentSong_text);
+
+    display.setCursor(92, 2);
+    display.print("/");
+
+    display.setCursor(104, 2);
+    display.print("20");
+
+    display.setTextSize(1);
+    display.setCursor(2, 21);
+    display.print("Current Tempo:");
+
+    display.setCursor(89, 21);
+    display.print(tempo_text);
+
+    display.setCursor(2, 55);
+    display.print("Mode:");
+
+    display.setCursor(32, 55);
+    display.print(modeSetting_text);
+
+    display.fillCircle(17, 42, 8, 1);
+
+    display.drawCircle(79, 42, 8, 1);
+
+    display.drawCircle(110, 42, 8, 1);
+
+    display.drawCircle(48, 42, 8, 1);
+
+    display.display();
+
+};
+
+
+class Normal {
+    display.clearDisplay();
+
+    display.setTextColor(1);
+    display.setTextWrap(false);
+    display.setCursor(23, 2);
+    display.print("Current Tempo:");
+
+    display.setTextSize(2);
+    display.setCursor(29, 14);
+    display.print(tempo_text);
+
+    display.setTextSize(1);
+    display.setCursor(2, 55);
+    display.print("Mode:");
+
+    display.setCursor(32, 55);
+    display.print(modeSetting_text);
+
+    display.fillCircle(17, 42, 8, 1);
+
+    display.drawCircle(79, 42, 8, 1);
+
+    display.drawCircle(110, 42, 8, 1);
+
+    display.drawCircle(48, 42, 8, 1);
+
+    display.display();
+};
+
+
+class WebConnect {
+    display.clearDisplay();
+
+    display.setTextColor(1);
+    display.setTextWrap(false);
+    display.setCursor(47, 3);
+    display.print("Visit:");
+
+    display.setCursor(20, 23);
+    display.print(ipAddress_text);
+
+    display.setCursor(35, 43);
+    display.print("To change ");
+
+    display.setCursor(5, 52);
+    display.print("the programmed songs");
+
+    display.drawRect(17, 18, 96, 17, 1);
+
+    display.display();
+};
+
+class Mode {
+display.clearDisplay();
+
+display.setTextColor(1);
+display.setTextWrap(false);
+display.setFont(&Petme8x8);
+display.setCursor(20, 11);
+display.print("Select Mode");
+
+display.drawLine(15, 13, 110, 13, 1);
+
+display.setFont();
+display.setCursor(1, 29);
+display.print("Press 'Tap' to Change");
+
+display.display();
+
+
+};
+
+class Setup {
+    display.clearDisplay();
+
+    display.setTextColor(1);
+    display.setTextWrap(false);
+    display.setCursor(20, 38);
+    display.print("Initialising...");
+
+    display.setTextSize(2);
+    display.setCursor(35, 12);
+    display.print(currentMode_text);
+
+    display.display();
+
+};
