@@ -40,10 +40,115 @@ enum Screens {
 
 Screens current_screen = INIT;
 
-const int SCREEN_WIDTH = 128;
-const int SCREEN_HEIGHT = 64;
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 32
+#define OLED_RESET -1
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+
+// --- OLED SCREENS ---
+void OLEDStartupDisplay() {
+    oledDisplay.clearDisplay();
+
+    oledDisplay.setTextColor(1);
+    oledDisplay.setTextWrap(false);
+    oledDisplay.setCursor(20, 38);
+    oledDisplay.print("Initialising...");
+
+    oledDisplay.setTextSize(2);
+    oledDisplay.setCursor(35, 12);
+    oledDisplay.print("HELLO");
+
+    oledDisplay.display();
+}
+
+void OLEDModeSelect() {
+    oledDisplay.clearDisplay();
+
+    oledDisplay.setTextColor(1);
+    oledDisplay.setTextWrap(false);
+    oledDisplay.setCursor(32, 4);
+    oledDisplay.print("Select Mode");
+
+    oledDisplay.drawLine(16, 15, 111, 15, 1);
+
+    oledDisplay.setCursor(5, 39);
+    oledDisplay.print("Press Tap to confirm");
+
+    oledDisplay.setCursor(14, 29);
+    oledDisplay.print("Use +/- to change");
+
+    oledDisplay.display();
+}
+
+void OLEDNormalDisplay(int currentBeat, int totalBeats = 4) {
+    oledDisplay.clearDisplay();
+
+    oledDisplay.setTextColor(1);
+    oledDisplay.setTextWrap(false);
+    oledDisplay.setCursor(2, 55);
+    oledDisplay.print("Mode:");
+
+    oledDisplay.setCursor(32, 55);
+    oledDisplay.print("getCurrentModeText(");
+
+    if (currentBeat == 1) {
+        oledDisplay.fillCircle(17, 32, 8, 1);
+    } else {
+        oledDisplay.drawCircle(17, 32, 8, 1);
+    }
+
+    if (currentBeat == 2) {
+        oledDisplay.fillCircle(48, 32, 8, 1);
+    } else {
+        oledDisplay.drawCircle(48, 32, 8, 1);
+    }
+
+    if (currentBeat == 3) {
+        oledDisplay.fillCircle(79, 32, 8, 1);
+    } else {
+        oledDisplay.drawCircle(79, 32, 8, 1);
+    }
+
+    if (currentBeat == 4) {
+        oledDisplay.fillCircle(110, 32, 8, 1);
+    } else {
+        oledDisplay.drawCircle(110, 32, 8, 1);
+    }
+
+
+    oledDisplay.setTextSize(2);
+    oledDisplay.setCursor(47, 2);
+
+    // Declare String objects
+    String currentBeatString = String(currentBeat);
+    String totalBeatString = String(totalBeats);
+
+    // Concatenate
+    String outputString = currentBeatString + "/" + totalBeatString;
+
+    // Print to OLED
+    oledDisplay.print(outputString);
+
+
+
+    oledDisplay.display();
+
+}
+
+// --- Settings ---
+char* settingsName[] = {
+    "Sound Type:",
+    "LED Blink:",
+    "Connect Web?"
+    "Reset:"
+};
+
+int soundType = 0;
+bool ledBlink = true;
+bool connectWeb = false;
+bool reset = false;
 
 // --- Buttons ---
 
@@ -101,10 +206,30 @@ bool sevenSegInit = false;
 bool buttonsInit = false;
 bool feedbackInit = false;
 
-// --- OLED SCREENS ---
-
-
 // ----- SETUP FUNCTIONS -----
+bool SetupOLED() {
+    Wire.begin();
+
+    if (!oledDisplay.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+        Serial.println("Failed to initialize display");
+        return false;
+    }
+
+
+    OLEDStartupDisplay();
+    delay(2000);
+    oledDisplay.clearDisplay();
+    oledDisplay.setTextColor(SSD1306_WHITE);
+    oledDisplay.setTextSize(1);
+    oledDisplay.setCursor(0, 0);
+    oledDisplay.println("WHY U NO WORK?");
+    oledDisplay.display();
+
+    current_screen = INIT;
+    Serial.println("OLED Initialized");
+    return true;
+}
+
 bool SetupSevenSegDisplay(char* initStr = "") {
     byte num_digits = 4;
     byte digit_pins[] = {12, 11, 10, 9};
@@ -119,6 +244,7 @@ bool SetupSevenSegDisplay(char* initStr = "") {
     bool leading_zeros = false;
 
     sevseg.begin(hardware_config, num_digits, digit_pins, segment_pins, resistors_on_segments, update_with_delays, leading_zeros, false);
+
 
     sevseg.setBrightness(90);
 
@@ -143,35 +269,25 @@ bool SetupButtons() {
     return true;
 }
 
-bool SetupOLED() {
-    if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-        Serial.println("Failed to initialize display");
-        return false;
-    }
-
-    //OLEDStartupDisplay(display);
-    delay(2000);
-    display.clearDisplay();
-    display.setTextColor(SSD1306_WHITE);
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-
-    current_screen = INIT;
-    Serial.println("OLED Initialized");
-    return true;
-}
-
 bool SetupFeedback() {
     // Todo: DAC
     pinMode(BEAT_INIDICATOR_PIN, OUTPUT);
     return true;
 }
 
-void setup() {
+int availableMemory() {
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
 
+void setup() {
     Serial.begin(9600);
 
     oledInit = SetupOLED();
+
+    delay(200);
+
     sevenSegInit = SetupSevenSegDisplay();
     buttonsInit = SetupButtons();
     feedbackInit = SetupFeedback();
@@ -180,7 +296,6 @@ void setup() {
         // All setup correctly
         current_screen = DEFAULT_SCREEN;
         sevseg.setChars("Done");
-
     }
     else {
         sevseg.setChars("Err!");
@@ -245,6 +360,7 @@ void cycleModeDown() {
 }
 
 void loop() {
+    sevseg.setChars("----");
 
     // --- Handle Button Presses ---
     PressType tapPress = CheckButtonPress(tapBtn);
@@ -273,7 +389,7 @@ void loop() {
         sevseg.setChars("----");
         static bool firstEntry = true;
         if (firstEntry) {
-            //OLEDModeSelect(display);
+            OLEDModeSelect();
             firstEntry = false;
         }
 
@@ -304,6 +420,7 @@ void loop() {
 
     // Handle Normal Mode (DEFAULT_SCREEN)
     else if (current_screen == DEFAULT_SCREEN) {
+        OLEDNormalDisplay(2);
         // Short Press Actions
         if (btnUpPress == SHORT_PRESS) {
             if (currentTempo < MAX_TEMPO) currentTempo++;
@@ -326,11 +443,10 @@ void loop() {
         sevseg.setNumber(currentTempo);
     }
 
-    sevseg.refreshDisplay();
-
     // Screen Dim
     if (millis() - lastInteractionTime >= SCREEN_DIM_TIMEOUT) {
         sevseg.setBrightness(BRIGHTNESS_DIM);
     }
 
+    sevseg.refreshDisplay();
 }
