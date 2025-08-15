@@ -1,9 +1,8 @@
 #include <Arduino.h>
-
+#include <SevSegShift.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <SevSegShift.h>
 
 // ---- SETUP -----
 // --- General ---
@@ -51,6 +50,7 @@ Adafruit_SSD1306 oledDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 void OLEDStartupDisplay() {
     oledDisplay.clearDisplay();
 
+    oledDisplay.setTextSize(1);
     oledDisplay.setTextColor(1);
     oledDisplay.setTextWrap(false);
     oledDisplay.setCursor(20, 38);
@@ -65,6 +65,8 @@ void OLEDStartupDisplay() {
 
 void OLEDModeSelect() {
     oledDisplay.clearDisplay();
+
+    oledDisplay.setTextSize(1);
 
     oledDisplay.setTextColor(1);
     oledDisplay.setTextWrap(false);
@@ -85,13 +87,15 @@ void OLEDModeSelect() {
 void OLEDNormalDisplay(int currentBeat, int totalBeats = 4) {
     oledDisplay.clearDisplay();
 
+    oledDisplay.setTextSize(1);
+
     oledDisplay.setTextColor(1);
     oledDisplay.setTextWrap(false);
     oledDisplay.setCursor(2, 55);
     oledDisplay.print("Mode:");
 
     oledDisplay.setCursor(32, 55);
-    oledDisplay.print("getCurrentModeText(");
+    oledDisplay.print(GetCurrentModeText());
 
     if (currentBeat == 1) {
         oledDisplay.fillCircle(17, 32, 8, 1);
@@ -172,26 +176,31 @@ enum PressType {
     LONG_PRESS
 };
 
-const int BTN_UP_PIN = 35;
-const int BTN_DOWN_PIN = 34;
-const int BTN_TAP_PIN = 27;
+const int BTN_UP_PIN = 27;
+const int BTN_DOWN_PIN = 12;
+const int BTN_TAP_PIN = 13;
 
 ButtonData upBtn;
 ButtonData downBtn;
 ButtonData tapBtn;
 
 // --- Shift Register (7 Seg) ---
-const int SHIFT_DS = 23;
-const int SHIFT_STCP = 5;
-const int SHIFT_SHCP = 18;
+#define SHIFT_DS 23
+#define SHIFT_STCP 5
+#define SHIFT_SHCP 18
+
+byte numDigits = 4;
+byte digit_pins[] = { 33, 32, 19, 4 };
+byte segment_pins[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
 
 SevSegShift sevseg(SHIFT_DS, SHIFT_SHCP, SHIFT_STCP, 1, true);
 
 unsigned long lastInteractionTime = 0;
 const unsigned long SCREEN_DIM_TIMEOUT = 5000;
-const int BRIGHTNESS_NORMAL = 100;
+const int BRIGHTNESS_NORMAL = 255;
 const int BRIGHTNESS_DIM = 10;
 static bool isDimmed = false;
+
 
 // --- Feedback ---
 // Todo: DAC
@@ -206,6 +215,8 @@ bool oledInit = false;
 bool sevenSegInit = false;
 bool buttonsInit = false;
 bool feedbackInit = false;
+
+
 
 // ----- SETUP FUNCTIONS -----
 bool SetupOLED() {
@@ -231,25 +242,22 @@ bool SetupOLED() {
     return true;
 }
 
-bool SetupSevenSegDisplay(char* initStr = "") {
-    byte num_digits = 4;
-    byte digit_pins[] = {4, 19, 32, 33};
+bool SetupSevenSegDisplay() {
 
-    byte segment_pins[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    pinMode(SHIFT_DS, OUTPUT);
+    pinMode(SHIFT_STCP, OUTPUT);
+    pinMode(SHIFT_SHCP, OUTPUT);
 
-    bool resistors_on_segments = true;
+    bool resistorsOnSegments = true; // 'false' means resistors are on digit pins
+    byte hardwareConfig = COMMON_CATHODE; // See README.md for options
+    bool updateWithDelays = false; // Default 'false' is Recommended
+    bool leadingZeros = false; // Use 'true' if you'd like to keep the leading zeros
+    bool disableDecPoint = false; // Use 'true' if your decimal point doesn't exist or isn't connected
 
-    byte hardware_config = COMMON_CATHODE;
-
-    bool update_with_delays = false;
-    bool leading_zeros = false;
-
-    sevseg.begin(hardware_config, num_digits, digit_pins, segment_pins, resistors_on_segments, update_with_delays, leading_zeros, false);
-
-
+    sevseg.begin(hardwareConfig, numDigits, digit_pins, segment_pins, resistorsOnSegments,
+                 updateWithDelays, leadingZeros, disableDecPoint);
     sevseg.setBrightness(90);
-
-    sevseg.setChars(initStr);
+    sevseg.setChars("Test");
 
     Serial.println("7Seg: Done!");
 
@@ -416,6 +424,7 @@ void loop() {
             switch (metronomeMode) {
                 case NORMAL:
                     current_screen = DEFAULT_SCREEN;
+                    OLEDNormalDisplay(3);
                     break;
                 case PROGRAM:
                     current_screen = PROGRAM_SCREEN;
@@ -434,7 +443,7 @@ void loop() {
     else if (current_screen == DEFAULT_SCREEN) {
         static bool beatUpdate = true;
         if (beatUpdate) {
-            //OLEDNormalDisplay(2);
+            OLEDNormalDisplay(2);
             beatUpdate = false;
         }
 
